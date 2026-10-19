@@ -2,9 +2,9 @@
 mod-version = "0.1.0"
 
 # Fabric (https://fabricmc.net/develop)
-jdk = "25"
-minecraft = "26.3"
-fabric-loader = "0.19.5"
+jdk = "21"               # Đổi 25 thành 21
+minecraft = "1.21.11"    # Đổi 26.3 thành 1.21.11
+fabric-loader = "0.19.5" # Hoặc bản loader phù hợp cho 1.21.11
 
 # Loom (https://github.com/FabricMC/fabric-loom)
 loom = "1.18-SNAPSHOT"
