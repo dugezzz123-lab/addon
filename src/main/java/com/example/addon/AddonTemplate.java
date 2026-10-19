@@ -26,7 +26,7 @@ public class AddonTemplate extends MeteorAddon {
         Modules.get().add(new ModuleExample());
 
         // Commands
-        Commands.add(new CommandExample());
+        Modules.get().add(new DiscordChatLogger());
 
         // HUD
         Hud.get().register(HudExample.INFO);
