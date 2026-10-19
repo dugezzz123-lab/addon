@@ -22,13 +22,25 @@ public class AddonTemplate extends MeteorAddon {
     public void onInitialize() {
         LOG.info("Initializing Meteor Addon Template");
 
-        // Modules
-        Modules.get().add(new ModuleExample());
-
-        // Commands
+        // --- DANG KY CAC MODULES ---
+        
+        // 1. Module Discord Webhook Logger
         Modules.get().add(new DiscordChatLogger());
 
-        // HUD
+        // 2. Module ESP / Soi Spawner
+        Modules.get().add(new KingSpawnerESP());
+
+        // 3. Module Lọc & Drop Item Spawner (Whitelist / Blacklist)
+        Modules.get().add(new AutoSpawnerLootFiltered());
+
+        // 4. Module Loop Spam Dispenser (Tự động xả & mở lại Spawner)
+        Modules.get().add(new AutoSpawnerLoop());
+
+        // 5. Các module phụ trợ khác (nếu dùng)
+        Modules.get().add(new AutoDrop());
+        Modules.get().add(new AutoOrder());
+
+        // --- HUD ---
         Hud.get().register(HudExample.INFO);
     }
 
