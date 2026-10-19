@@ -1,1 +1,147 @@
+package com.example.addon.modules;
 
+import com.example.addon.AddonTemplate;
+import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.orbit.EventHandler;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.screen.slot.SlotActionType;
+
+import java.util.List;
+
+public class AutoSpawnerLootFiltered extends Module {
+    private final SettingGroup sgGeneral = settings.getDefaultGroup();
+
+    // 1. Chế độ lọc: Whitelist hay Drop tất cả trừ Blacklist
+    private final Setting<Mode> filterMode = sgGeneral.add(new EnumSetting.Builder<Mode>()
+        .name("filter-mode")
+        .description("Chế độ lọc item khi lấy từ Spawner GUI.")
+        .defaultValue(Mode.Whitelist)
+        .build()
+    );
+
+    // 2. Danh sách Whitelist (chỉ lấy những item này)
+    private final Setting<List<Item>> whitelist = sgGeneral.add(new ItemListSetting.Builder()
+        .name("whitelist-items")
+        .description("Danh sách các item ĐƯỢC PHÉP rút/drop lẻ.")
+        .defaultValue(Items.PORKCHOP, Items.COOKED_PORKCHOP, Items.BONE, Items.ROTTEN_FLESH)
+        .visible(() -> filterMode.get() == Mode.Whitelist)
+        .build()
+    );
+
+    // 3. Danh sách Blacklist (thấy item này sẽ DỪNG NGAY mọi hành động drop)
+    private final Setting<List<Item>> blacklist = sgGeneral.add(new ItemListSetting.Builder()
+        .name("blacklist-items")
+        .description("Nếu phát hiện bất kỳ item nào trong danh sách này, module sẽ DỪNG NGAY LẬP TỨC.")
+        .defaultValue(Items.DIAMOND, Items.NETHERITE_INGOT, Items.ENCHANTED_GOLDEN_APPLE)
+        .build()
+    );
+
+    // 4. Độ trễ giữa mỗi thao tác drop lẻ (tick)
+    private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
+        .name("delay-ticks")
+        .description("Độ trễ giữa mỗi lần nhặt lẻ item (tính bằng tick).")
+        .defaultValue(2)
+        .min(1)
+        .sliderMax(20)
+        .build()
+    );
+
+    private final Setting<Boolean> autoClose = sgGeneral.add(new BoolSetting.Builder()
+        .name("auto-close")
+        .description("Tự động đóng GUI sau khi xử lý xong.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private int timer = 0;
+
+    public enum Mode {
+        Whitelist,
+        BlacklistOnly
+    }
+
+    public AutoSpawnerLootFiltered() {
+        super(AddonTemplate.CATEGORY, "auto-spawner-filtered", "Tự động drop lẻ item từ Spawner dựa trên Whitelist & dừng khi dính Blacklist.");
+    }
+
+    @Override
+    public void onActivate() {
+        timer = 0;
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (mc.player == null || mc.player.currentScreenHandler == null) return;
+
+        // Kiểm tra xem có đang mở GUI Spawner hay không
+        if (mc.player.currentScreenHandler instanceof GenericContainerScreenHandler handler) {
+            
+            // --- KIỂM TRA TOÀN BỘ GUI XEM CÓ ITEM TRONG BLACKLIST KHÔNG ---
+            for (int i = 0; i < 45; i++) {
+                ItemStack stack = handler.getSlot(i).getStack();
+                if (!stack.isEmpty() && blacklist.get().contains(stack.getItem())) {
+                    // Cảnh báo trong chat và dừng ngay lập tức
+                    error("Phát hiện vật phẩm nằm trong BLACKLIST (%s)! Đã dừng hành động drop.", stack.getItem().getName().getString());
+                    if (autoClose.get()) mc.player.closeHandledScreen();
+                    toggle(); // Tắt module để bảo vệ đồ
+                    return;
+                }
+            }
+
+            // Xử lý độ trễ (delay)
+            if (timer > 0) {
+                timer--;
+                return;
+            }
+
+            boolean processedAnySlot = false;
+
+            // --- QUÉT VÀ DROP LẺ CÁC ITEM ĐƯỢC CHỌN ---
+            for (int i = 0; i < 45; i++) {
+                ItemStack stack = handler.getSlot(i).getStack();
+                if (stack.isEmpty() || stack.getItem() == Items.AIR) continue;
+
+                Item currentItem = stack.getItem();
+                boolean shouldDrop = false;
+
+                if (filterMode.get() == Mode.Whitelist) {
+                    // Ở chế độ Whitelist: Chỉ drop những item có trong Whitelist
+                    if (whitelist.get().contains(currentItem)) {
+                        shouldDrop = true;
+                    }
+                } else {
+                    // Ở chế độ BlacklistOnly: Drop tất cả ngoại trừ những gì nằm trong Blacklist
+                    if (!blacklist.get().contains(currentItem)) {
+                        shouldDrop = true;
+                    }
+                }
+
+                if (shouldDrop) {
+                    processedAnySlot = true;
+
+                    // Thực hiện Quick Move (Shift + Click) để rút/drop lẻ slot này
+                    mc.interactionManager.clickSlot(
+                        handler.syncId,
+                        i,
+                        0,
+                        SlotActionType.QUICK_MOVE,
+                        mc.player
+                    );
+
+                    timer = delay.get();
+                    return; // Xử lý từng ô một theo delay
+                }
+            }
+
+            // Nếu không còn item nào cần drop nữa
+            if (!processedAnySlot && autoClose.get()) {
+                mc.player.closeHandledScreen();
+            }
+        }
+    }
+}
